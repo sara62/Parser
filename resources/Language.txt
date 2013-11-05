@@ -1,0 +1,98 @@
+NOTATION:
+    stack is the stack of values/variables that operations work on
+    stack[-1] is stack[-1] on the stack
+    stack[-2] is stack[-2] on the stack
+    All values are floats, always, unconditionally
+    Values is used to refer to an object that is either a variable or a literal
+        This term is used because most operations don't care which they get
+    A literal will never be called a variable, and vice versa
+
+                                    Program Commands:
+LOAD [file]:    Load a program from file into memory
+RUN:            Run any program lines currently loaded in memory
+CLEAR:          Clear any loaded program lines from memory
+LIST:           Print all program lines currently loaded in memory
+HELP:           Prints a list of all available commands
+EXIT:           Exits from the prompt
+
+                                    Language Commands:
+Stack Value Addition Functions:
+These functions push new values to the stack
+    (LITERAL)   Pushes literal value on stack
+    (VARIABLE)  Pushes variable onto the stack
+    INPUT       Gets input from user, pushes it to stack
+        Will keep asking till a valid float is given
+Variable Set Functions:
+These functions control the setting of variables
+    =       Sets variable in stack[-1] to stack[-2]
+        Usage: 5 A =
+Math operators:
+These push the result of stack[-2] (operator) stack[-1]
+    +       Addition
+    -       Subtraction
+    *       Multiplication
+    /       Division
+    **      Power
+    %       Modulo
+Comparators:
+These push 1 if (stack[-2] (comparator) stack[-1]) else 0
+    >       Greater than
+    <       Less than
+    >=      Greater than or Equal to
+    <=      Less than or Equal to
+    ==      Equal to
+    <>      Not Equal to
+Math Functions:
+These push the result of their operation on stack[-1]
+    ABS     Absolute Value
+    SIN     Sine
+    COS     Cosine
+    TAN     Tangent
+    ASIN    Inverse Sine
+    ACOS    Inverse Cosine
+    ATAN    Inverse Tangent (Using the atan function)
+    ATNT    Inverse Tangent (Using the atan2 function)
+        Pops stack[-1] as x, and stack[-2] as y
+    EXP     e ^ (value)
+    LOG     Log Base e
+    LOGT    Log Base 10
+    SQRT    Square Root
+    RAND    Push value between 0 and 1
+        This does not pop any values
+    DUPE    Duplicate top value (push stack[-1])
+        This does not pop any values
+Miscellaneous Functions:
+These functions print to the debug console, aiding in debugging programs
+    SER     If a serial device is present, this will write the integer value as a byte to serial
+        If a serial device is not preset, this will act identically to POP
+        Depends on the serial library, and that the device is on COM5
+        You can change to a different COM port in source if you want to
+    POP     Pops stack[-1] and prints it to the console
+    PEEK    Prints stack[-1] without removing it from the stack
+    PRNT    Prints the whole stack to the console, with stack[-1] appearing last
+    LINE    Prints the current line number to the console
+    REM     Makes the remainder of the line a comment
+    PRINT   Prints the remainder of the line without parsing it
+Control Flow Functions:
+These functions control the flow of the program, operating on line numbers
+Most of these functions have notes, indented below the description
+    GOTO    Unconditional Jump to line number stack[-1]
+        Finishes execution of current line
+    GOSUB   Jump to line number stack[-1], but save execution line
+        Finishes execution of current line, will not be rerun after RET
+    RET     Return to line after last GOSUB
+        Finishes execution of current line
+    IF      Executes code to ELSE statement if stack[-1] > 0
+        Takes effect immediately, meaning one line IF .. ELSE .. ENDIF is possible
+    ELSE    Will execute if the corresponding IF statement was false
+        Takes effect immediately
+    ENDIF   Breaks out of an IF block
+        Takes effect immediately
+    WHILE   The variable in stack[-1] will be popped and associated with this loop
+        The lines until a LOOP will be run at least once
+        LOOP will return to the line after this, so anything on the WHILE line
+            will only be run once before starting the loop code
+    LOOP    Jumps back to the line after the corresponding WHILE statement if its variable > 0
+    BREAK   Exits from the most recent WHILE loop
+    WAIT    Delays for stack[-1] seconds
+    QUIT    Halts execution of the program
