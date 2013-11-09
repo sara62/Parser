@@ -1,4 +1,3 @@
-#include "helper.h"
 #include "parser.h"
 
 #include <vector>
@@ -8,7 +7,7 @@ int main( ){
     Parser parse;
 
     // Run the parser!
-    //parse.runParse( );
+    parse.runParse( );
 
     while (1);
 }
