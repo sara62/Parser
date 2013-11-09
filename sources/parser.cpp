@@ -2,10 +2,16 @@
 
 #include "stdio.h"
 
-#undef DEBUG
+#define DEBUG
 
 Parser::Parser( ) {
-    // TODO: Set up all the functions/variables... :-S
+    // TODO: Set up all the functions... :-S
+    //   Thats gonna be a lot of oList calls...
+    char cChar;
+
+    for( cChar = 65; cChar < 91; ++cChar ){
+        this->vList[ cChar ] = 0.0;
+    }
 };
 Parser::~Parser( ) { };
 
@@ -15,7 +21,7 @@ int Parser::runParse( ) {
     this->running = true;
 
     while( 1 ){
-        printf( "Program? -> " );
+        printf( "Clever prompt -> " );
         std::cin >> file;
 
         std::transform(file.begin(), file.end(), file.begin(), ::tolower);
@@ -23,17 +29,19 @@ int Parser::runParse( ) {
         if( file.compare( std::string( "exit" ) ) == 0 ){
             exit( 0 );
         } else if( file.compare( std::string( "load" ) ) == 0 ){
+            printf( "Loading" );
             std::cin >> file;
-            // TODO: RESET
+
             if( this->openFile( file ) == -1 ){
-                printf( "Could not open file %s\n", file.c_str() );
+                printf( "\nCould not open file %s", file.c_str() );
             }
+            printf( "\n" );
         } else if( file.compare( std::string( "run" ) ) == 0 ){
-            // TODO: runProg()
+            this->runFile( );
         } else if( file.compare( std::string( "clear" ) ) == 0 ){
-            // TODO: reset()
+            this->reset( );
         } else if( file.compare( std::string( "list" ) ) == 0 ){
-            // TODO: for each line, print the line
+            this->listProg( );
         } else if( file.compare( std::string( "help" ) ) == 0 ){
             printf( "Commands: EXIT, LOAD, RUN, CLEAR, LIST, HELP\n" );
         }
@@ -44,17 +52,17 @@ int Parser::runParse( ) {
 
 void Parser::reset( ) {
     this->file.close( );
-    while( ! this->vStack.empty( ) ) this->vStack.pop( );
+    this->vStack.erase( this->vStack.begin( ), this->vStack.end( ) );
     this->cStack.erase( this->cStack.begin( ), this->cStack.end( ) );
     // TODO: CLEAR ALL VARIABLES
 };
 
 int Parser::openFile( std::string& filename ){
-#ifdef DEBUG
-    char buf[ 12 ];
-#endif
     char fchar;
     bool mark = true;
+
+    // Close file if already open
+    if( this->file.is_open( ) ) this->reset( );
 
     // Save filename
     this->filename = filename;
@@ -62,9 +70,6 @@ int Parser::openFile( std::string& filename ){
     // Open the file, debug print
     // MSVC 2008 DOESNT SUPPORT C++11 OH MY GAWD
     this->file.open( this->filename.c_str( ), std::fstream::in );
-#ifdef DEBUG
-    printf( "%d\n", this->file.is_open( ) == true ? 1 : 0 );
-#endif
     if( ! this->file.is_open( ) ) return -1;
 
     // Get line starts
@@ -75,6 +80,7 @@ int Parser::openFile( std::string& filename ){
         if( mark && fchar != 13 ){
             mark = false;
             this->linestarts.push_back( (unsigned short) this->file.tellg( ) - 1 );
+            printf( "." );
         }
         if( fchar == 10 ){
             mark = true;
@@ -86,59 +92,127 @@ int Parser::openFile( std::string& filename ){
     // NOTE: TEST THIS, ITS POSSIBLY A WINDOWS ONLY THING :(
     this->file.clear( );
 
-#ifdef DEBUG
-    for( unsigned i = 1; i < this->linestarts.size(); ++i ){
-        this->file.seekg( this->linestarts[ i ], this->file.beg );
-        this->file.get( buf, 12 );
-        if( this->file.rdstate( ) == this->file.goodbit ){
-            printf( "Line: %d\nPosition: %d\n-> %s\n", i, this->linestarts[ i ], buf );
-        } else {
-            printf( "FAILURE reading line: %d ->%d%d%d%d\n", i, (this->file.good())?1:0, (this->file.eof())?1:0, (this->file.fail())?1:0, (this->file.bad())?1:0 );
-        }
-    }
-#endif
-
     // Return line count
     return this->linestarts.size( );
 };
 
+void Parser::listProg( ){
+    unsigned i;
+    std::string line;
+
+    // QUESTION: Print an error message here?
+    if( ! this->file.is_open( ) ) return;
+
+    if( this->file.eof( ) ) this->file.clear( );
+
+    for( i = 1; i < this->linestarts.size( ); ++i ){
+        this->file.seekg( this->linestarts[ i ], this->file.beg );
+        if( getline( this->file, line ) ){
+            std::cout << i << ": " << line << std::endl;
+        } else break;
+    }
+};
+
 int Parser::runFile( ) {
-    // TODO: This is the python function runProg(...)
-    // while true:
-        // if line number is out of bounds, exit good
-        // try to parseLine a line
-        // catch and print syntax errors
-        // if running false
-            // break
-        // else
-            // increment line counter
-        
+    unsigned line = 1;
+    unsigned lncnt = this->linestarts.size( ) - 1;
+
+    while( 1 ){
+        if( line > lncnt || line < 1 ) break;
+        try{
+            this->parseLine( line );
+        } catch( SyntaxError e ){
+            std::cout << e.what( ) << " At line:" << line << std::endl;
+            return -1;
+        }
+        if( this->running == false ) break;
+        else ++line;
+    }
+
+    printf( "Program terminated successfully.\n" );
     return 0;
 };
 
 int Parser::parseLine( unsigned linenum ) {
-    // TODO: This is the python function parseRPN(...)
+    std::stringstream line;
+    std::string oper;
+    std::deque<Parser::Control>::reverse_iterator criter;
+    bool printing = false;
 
-    // getline the line
-    // while not endofline
-        // line >> oper
-        // seach cStack for if
-            // -1 if not one, index else
-        // if index -1, branch is true, or is ELSE or is ENDIF
+    // If the file is still good
+    if( ! this->file.is_open( ) ){
+        this->running = false;
+        return -1;
+    }
+
+    // If we hit eof, reset the file
+    if( this->file.eof( ) ) this->file.clear( );
+
+    // Seek to the proper position
+    this->file.seekg( this->linestarts[ linenum ] );
+
+    // Get a line
+    std::getline( this->file, oper );
+    line << oper;
+
+    // Check for empty line
+    if( oper.find_first_not_of( std::string( " " ) ) == oper.npos ) return 0;
+
+    while( ! line.eof( ) ){
+        bool lastifbranch = true;
+        
+        line >> oper;
+        // Oper is a comment marker
+        if( oper.compare( std::string( "REM" ) ) == 0 ) return 0;
+
+        if( printing ){
+            std::cout << oper << " ";
+            continue;
+        }
+        
+        // Find the topmost if statement
+        for( criter = this->cStack.rbegin( ); criter != this->cStack.rend( ); ++criter ){
+            if( criter->type == Parser::CONTROL_IF ){
+                // If there is one, get the branch we are on
+                lastifbranch = criter->branch;
+                break;
+            }
+        }
+        
+        // Check for ELSE/ENDIF unconditionally
+        if( oper.compare( std::string( "ELSE" ) ) == 0 ) {}
+        else if( oper.compare( std::string( "ENDIF" ) ) == 0 ) {}
+
+        if( lastifbranch == true ){
+            printf( "\n:%d:%s:", linenum, oper.c_str( ) );
+            
+            // Oper is a print statement
+            if( oper.compare( std::string( "PRINT" ) ) == 0 ) { std::cout << std::endl; printing = true; continue; }
+            // Oper is quitting execution
+            else if( oper.compare( std::string( "QUIT" ) ) == 0 ) { this->running = false; return 0; }
+            // check oper for control statements
+            /*
+                def ret_():
+                def if_():
+                def else_():
+                def endif_():
+                def while_():
+                def loop_():
+                def break_():
+            */
             // check operator list for oper
                 // run if in
-            // check variable list for oper
-                // add to stack if in
+            // Oper is a variable
+            else if( oper.length( ) == 1 && this->vList.find( oper.c_str( )[ 0 ] ) != this->vList.end( ) )
+                this->vStack.push_back( Value::Variable( oper.c_str( )[ 0 ] ) );
             // check for float conversion
-                // add to stack if in
-            // if is REM
-                // return
-            // if is PRINT
-                // print line number
-            // else
-                // SyntaxError
-        // else
-            // continue
+                // add to stack if good
+            // Oper is bad, and should feel bad
+            else throw( SyntaxError( "Invalid operator!" ) );
+        } else continue;
+    }
+
+    printf( "\n" );
         
     return 0;
 };
