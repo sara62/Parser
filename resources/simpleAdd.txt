@@ -3,6 +3,7 @@ B WHILE 1 B = 0 A =                 REM Setting B to 1 only gets run once before
     A SER                           REM This should just POP the value of A
     A C + A =                       REM Add C to A, store in A
 PRINT    HALLOS! REM ASD:FKJA
+QUIT
     A 100 >= IF -1 C * C = ENDIF    REM If A >= 100, multiply C by -1, and store back in C
     A 0 < IF BREAK ENDIF            REM If A <= 0, go to line after LOOP (Could also set B=0 to finish loop first)
     .5 WAIT                         REM Wait for serial data to get sent

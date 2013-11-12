@@ -1,8 +1,5 @@
 #include "parser.h"
 
-#include <vector>
-#include <string>
-
 int main( ){
     Parser parse;
 
