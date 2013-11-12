@@ -10,7 +10,10 @@ Parser::Parser( ) {
     }
 
     // Set up functions.. so many calls :/
-    this->oList[ "PRNT" ]   = Parser::Operator( (unsigned)0, prnt_ );
+    this->oList[ "WAIT" ]   = Parser::Operator( (unsigned)0, wait_ );
+    this->oList[ "POP" ]    = Parser::Operator( (unsigned)0, pop_ );
+    this->oList[ "SER" ]    = Parser::Operator( (unsigned)0, ser_ );
+    this->oList[ "PEEK" ]   = Parser::Operator( (unsigned)0, peek_ );
     this->oList[ "=" ]      = Parser::Operator( (unsigned)2, assign_ );
     this->oList[ "+" ]      = Parser::Operator( (unsigned)2, add_ );
     this->oList[ "-" ]      = Parser::Operator( (unsigned)2, sub_ );
@@ -73,18 +76,25 @@ int Parser::runParse( ) {
 
     return 0;
 };
-std::deque<Parser::Control>::reverse_iterator Parser::findTop( Parser::ControlType type, bool popoff = false ){
+
+Parser::Control Parser::findTop( Parser::ControlType type, bool popoff = false ){
     std::deque<Parser::Control>::reverse_iterator retfinder;
+    std::deque<Parser::Control>::reverse_iterator endoflist;
 
-    if( this->cStack.size( ) == 0 ) return retfinder;
+    if( this->cStack.size( ) == 0 ) return Parser::Control( );
 
-    for( retfinder = this->cStack.rbegin( ); retfinder != this->cStack.rend( ); ++retfinder ){
+    for( retfinder = this->cStack.rbegin( ), endoflist = this->cStack.rend( ); retfinder != endoflist; ++retfinder ){
         if( retfinder->type == type ){
-            return retfinder;
+            if( popoff ){
+                if( retfinder != this->cStack.rbegin( ) ){
+                    this->cStack.erase( retfinder.base( ), this->cStack.end( ) );
+                }
+            }
+
+            return this->cStack[ this->cStack.size( ) - 1 ];
         }
-        if( popoff ) this->cStack.pop_back( );
     }
-    return retfinder;
+    return Parser::Control( );
 };
 
 void Parser::reset( ) {
@@ -173,9 +183,9 @@ int Parser::runFile( ) {
 int Parser::parseLine( unsigned linenum ) {
     std::stringstream line;
     std::string oper;
-    std::deque<Parser::Control>::reverse_iterator criter;
+    Parser::Control criter;
     bool printing = false;
-    bool findLoop = false;
+    static bool findLoop = false;
 
     // If the file is still good
     if( ! this->file.is_open( ) ){
@@ -206,10 +216,12 @@ int Parser::parseLine( unsigned linenum ) {
         // Searching for a LOOP
         if( findLoop ){
             if( oper.compare( std::string( "LOOP" ) ) == 0 ){
-                --( this->line );
+                this->line;
+                findLoop = false;
                 return 0;
             } else continue;
         }
+
         // Print rest of line
         if( printing ){
             std::cout << oper << " ";
@@ -219,7 +231,7 @@ int Parser::parseLine( unsigned linenum ) {
         // Find the topmost if statement, get its branch
         if( this->cStack.size( ) > 0 ){
             criter = findTop( Parser::CONTROL_IF );
-            if( criter->type == Parser::CONTROL_IF ) lastifbranch = criter->branch;
+            if( criter.type == Parser::CONTROL_IF ) lastifbranch = criter.branch;
         }
 
         // Check for ELSE/ENDIF unconditionally
@@ -241,6 +253,22 @@ int Parser::parseLine( unsigned linenum ) {
             if( oper.compare( std::string( "PRINT" ) ) == 0 ) { std::cout << std::endl; printing = true; continue; }
             // Oper is quitting execution
             else if( oper.compare( std::string( "QUIT" ) ) == 0 ) { this->running = false; return 0; }
+            // Oper is asking for a line print
+            else if( oper.compare( std::string( "LINE" ) ) == 0 ) { std::cout << "Line: " << this->line << std::endl; }
+            else if( oper.compare( std::string( "PRNT" ) ) == 0 ) {
+                std::deque<Parser::Value>::reverse_iterator riter, end;
+                std::deque<Parser::Control>::reverse_iterator criter, cend;
+                std::cout << std::endl << "Stack Dump:" << std::endl;
+                for( riter = this->vStack.rbegin( ), end = this->vStack.rend( ); riter != end; ++riter ){
+                    std::cout << (char) ( (riter->isVar) ? riter->tag : 32 );
+                    std::cout << " " << riter->getVal( vList ) << std::endl;
+                }
+                std::cout << std::endl << "Control Stack Dump:" << std::endl;
+                for( criter = this->cStack.rbegin( ), cend = this->cStack.rend( ); criter != cend; ++criter ){
+                    std::cout << ( ( criter->type == Parser::CONTROL_INVALID ) ? "INVALID" : ( ( criter->type == Parser::CONTROL_GOSUB ) ? "GOSUB" : ( ( criter->type == Parser::CONTROL_IF ) ? "IF" : ( ( criter->type == Parser::CONTROL_WHILE ) ? "WHILE" : ( "DURRR" ) ) ) ) );
+                    std::cout << " " << ( ( criter->branch ) ? "true" : "false" ) << " " << criter->line << " " << (char) criter->var << std::endl;
+                }
+            }
             // check oper for control statements
             else if( oper.compare( std::string( "GOTO" ) ) == 0 ) {
                 if( this->vStack.size( ) < 1) throw SyntaxError( "GOTO with no variables on stack!" );
@@ -268,7 +296,7 @@ int Parser::parseLine( unsigned linenum ) {
 
                 if( this->cStack.size( ) == 0 ) throw SyntaxError( "RET with no prior GOSUB!" );
                 else {
-                    this->line = criter->line;
+                    this->line = criter.line;
                     this->cStack.pop_back( );
                 }
             }
@@ -287,16 +315,15 @@ int Parser::parseLine( unsigned linenum ) {
             else if( oper.compare( std::string( "LOOP" ) ) == 0 ) {
                 criter = findTop( Parser::CONTROL_WHILE, true );
 
-                if( this->cStack.size( ) == 0 ) throw SyntaxError( "LOOP with no prior WHILE!" );
-                else {
-                    if( this->vList[ criter->var ] <= 0 ) this->line = criter->line;
-                    else this->cStack.pop_back( );
-                }
+                if( criter.type != Parser::CONTROL_WHILE ) throw SyntaxError( "LOOP with no prior WHILE!" );
+
+                if( this->vList[ criter.var ] > 0 ) this->line = criter.line;
+                else this->cStack.pop_back( );
             }
             else if( oper.compare( std::string( "BREAK" ) ) == 0 ) {
                 criter = findTop( Parser::CONTROL_WHILE, true );
 
-                if( this->cStack.size( ) == 0 ) throw SyntaxError( "BREAK with no prior WHILE!" );
+                if( criter.type != Parser::CONTROL_WHILE ) throw SyntaxError( "BREAK with no prior WHILE!" );
                 this->cStack.pop_back( );
                 findLoop = true;
             }
@@ -318,45 +345,37 @@ int Parser::parseLine( unsigned linenum ) {
         } else continue;
     }
 
-    printf( "\n" );
-
     return 0;
 };
 
 // Ready for the loooong list of operators supported?? :D
 // Basic format is this: void operatorname_( std::deque<Parser::Value>& stack, std::map<char, float>& vList ) {...};
 
-// TODO:
-/*
-"RAND": operator(0, lambda: stack.append(literal(uniform(0,1)))),
-"DUPE": operator(1, lambda: stack.append(stack[-1])),
-"POP":  operator(1, lambda: print("Line:",cline+1,stack.pop())),
-"PEEK": operator(1, lambda: print("Line:",cline+1,stack[-1])),
-"LINE": operator(0, lambda: print("Line:",cline+1)),
-"WAIT": operator(1, lambda: sleep(stack.pop().value)),
-def input_():
-
-*/
-
 // The useful debugging ones!
-void prnt_( std::deque<Parser::Value>& stack, std::map<char, float>& vList ){
-    std::deque<Parser::Value>::reverse_iterator riter;
-    std::cout << std::endl << "Stack Dump:" << std::endl;
-    for( riter = stack.rbegin( ); riter != stack.rend( ); ++riter ){
-        std::cout << (char) ( (riter->isVar) ? riter->tag : 32 );
-        std::cout << " " << riter->getVal( vList ) << std::endl;
-    }
-    // TODO: This needs to print the control stack as well!
+void wait_( std::deque<Parser::Value>& stack, std::map<char, float>& vList ){
+    // TODO: This is a windows only call :/
+    Sleep( (DWORD) ( 1000.0 * stack.back( ).getVal( vList ) ) );
+    stack.pop_back( );
 }
-//WAIT
-//LINE
 //INPUT
 
 // Some other ones!
 //RAND
 //DUPE
-//POP
-//PEEK
+void pop_( std::deque<Parser::Value>& stack, std::map<char, float>& vList ){
+    peek_( stack, vList );
+    stack.pop_back( );
+}
+void ser_( std::deque<Parser::Value>& stack, std::map<char, float>& vList ){
+    // TODO: If serial comms are enabled, this should send the top value there instead
+    peek_( stack, vList );
+    stack.pop_back( );
+}
+void peek_( std::deque<Parser::Value>& stack, std::map<char, float>& vList ){
+    Parser::Value val = stack.back( );
+    std::cout << (char) ( (val.isVar) ? val.tag : 32 );
+    std::cout << " " << val.getVal( vList ) << std::endl;
+}
 
 // The one basic one!
 void assign_( std::deque<Parser::Value>& stack, std::map<char, float>& vList ){
@@ -403,7 +422,6 @@ void sqrt_( std::deque<Parser::Value>& stack, std::map<char, float>& vList ){
     unsigned len = stack.size( );
     // In-place replace the result
     stack[len-1] = Parser::Value::Literal( sqrt( stack[len-1].getVal( vList ) ) );
-    stack.pop_back( );
 };
 void mod_( std::deque<Parser::Value>& stack, std::map<char, float>& vList ){
     unsigned len = stack.size( );
@@ -415,7 +433,6 @@ void abs_( std::deque<Parser::Value>& stack, std::map<char, float>& vList ){
     unsigned len = stack.size( );
     // In-place replace the result
     stack[len-1] = Parser::Value::Literal( abs( stack[len-1].getVal( vList ) ) );
-    stack.pop_back( );
 };
 
 // Next up, trig!
@@ -423,37 +440,31 @@ void sin_( std::deque<Parser::Value>& stack, std::map<char, float>& vList ){
     unsigned len = stack.size( );
     // In-place replace the result
     stack[len-1] = Parser::Value::Literal( sin( stack[len-1].getVal( vList ) ) );
-    stack.pop_back( );
 };
 void cos_( std::deque<Parser::Value>& stack, std::map<char, float>& vList ){
     unsigned len = stack.size( );
     // In-place replace the result
     stack[len-1] = Parser::Value::Literal( cos( stack[len-1].getVal( vList ) ) );
-    stack.pop_back( );
 };
 void tan_( std::deque<Parser::Value>& stack, std::map<char, float>& vList ){
     unsigned len = stack.size( );
     // In-place replace the result
     stack[len-1] = Parser::Value::Literal( tan( stack[len-1].getVal( vList ) ) );
-    stack.pop_back( );
 };
 void asin_( std::deque<Parser::Value>& stack, std::map<char, float>& vList ){
     unsigned len = stack.size( );
     // In-place replace the result
     stack[len-1] = Parser::Value::Literal( asin( stack[len-1].getVal( vList ) ) );
-    stack.pop_back( );
 };
 void acos_( std::deque<Parser::Value>& stack, std::map<char, float>& vList ){
     unsigned len = stack.size( );
     // In-place replace the result
     stack[len-1] = Parser::Value::Literal( acos( stack[len-1].getVal( vList ) ) );
-    stack.pop_back( );
 };
 void atan_( std::deque<Parser::Value>& stack, std::map<char, float>& vList ){
     unsigned len = stack.size( );
     // In-place replace the result
     stack[len-1] = Parser::Value::Literal( atan( stack[len-1].getVal( vList ) ) );
-    stack.pop_back( );
 };
 void atnt_( std::deque<Parser::Value>& stack, std::map<char, float>& vList ){
     unsigned len = stack.size( );
@@ -467,19 +478,16 @@ void exp_( std::deque<Parser::Value>& stack, std::map<char, float>& vList ){
     unsigned len = stack.size( );
     // In-place replace the result
     stack[len-1] = Parser::Value::Literal( exp( stack[len-1].getVal( vList ) ) );
-    stack.pop_back( );
 };
 void log_( std::deque<Parser::Value>& stack, std::map<char, float>& vList ){
     unsigned len = stack.size( );
     // In-place replace the result
     stack[len-1] = Parser::Value::Literal( log( stack[len-1].getVal( vList ) ) );
-    stack.pop_back( );
 };
 void logt_( std::deque<Parser::Value>& stack, std::map<char, float>& vList ){
     unsigned len = stack.size( );
     // In-place replace the result
     stack[len-1] = Parser::Value::Literal( log10( stack[len-1].getVal( vList ) ) );
-    stack.pop_back( );
 };
 
 // And last but not least, the comparators!
