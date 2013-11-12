@@ -94,7 +94,8 @@ Most of these functions have notes, indented below the description
         LOOP will return to the line after this, so anything on the WHILE line
             will only be run once before starting the loop code
     LOOP    Jumps back to the line after the corresponding WHILE statement if its variable > 0
-        Will cut through ALL previous control statemets to find a WHILE
+        Will cut through ALL previous control statements to find a WHILE
     BREAK   Exits from the most recent WHILE loop
+        Will jump to line after NEXT LOOP, be careful with whiles in whiles
     WAIT    Delays for stack[-1] seconds
     QUIT    Halts execution of the program
