@@ -15,6 +15,9 @@
 
 #include "stdio.h"
 
+// TODO: This is windows only!
+#include "Windows.h"
+
 #define DEBUG
 
 class SyntaxError : public std::exception {
@@ -54,7 +57,7 @@ public:
         Control( ) { this->type = Parser::CONTROL_INVALID; };
         static Control cIf( bool branch ) { Control temp; temp.type = Parser::CONTROL_IF; temp.branch = branch; return temp; };
         static Control cGosub( unsigned line ) { Control temp; temp.type = Parser::CONTROL_GOSUB; temp.line = line; return temp; };
-        static Control cWhile( unsigned line, Value& var ) { if( var.isVar == true ){ Control temp; temp.line = line; temp.var = var.tag; return temp; } else { throw SyntaxError( "While not initialized with a variable! " ); } };
+        static Control cWhile( unsigned line, Value& var ) { if( var.isVar == true ){ Control temp; temp.type = Parser::CONTROL_WHILE; temp.line = line; temp.var = var.tag; return temp; } else { throw SyntaxError( "While not initialized with a variable! " ); } };
         ~Control( ) { };
 
         Parser::ControlType type;
@@ -92,7 +95,7 @@ public:
     int runParse( );
 
 private:
-    std::deque<Parser::Control>::reverse_iterator findTop( Parser::ControlType, bool );
+    Parser::Control findTop( Parser::ControlType, bool );
 
     void reset( );
     int openFile( std::string& );
@@ -102,7 +105,10 @@ private:
 };
 
 // Function declarations for all the operators :-S
-void prnt_( std::deque<Parser::Value>&, std::map<char, float>& );
+void wait_( std::deque<Parser::Value>&, std::map<char, float>& );
+void pop_( std::deque<Parser::Value>&, std::map<char, float>& );
+void ser_( std::deque<Parser::Value>&, std::map<char, float>& );
+void peek_( std::deque<Parser::Value>&, std::map<char, float>& );
 void assign_( std::deque<Parser::Value>&, std::map<char, float>& );
 void add_( std::deque<Parser::Value>&, std::map<char, float>& );
 void sub_( std::deque<Parser::Value>&, std::map<char, float>& );
