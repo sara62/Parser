@@ -1,6 +1,10 @@
 /*************************************************************************************
 * parser.cpp
 * Defines the Parser class, its methods, and its helper functions
+* 
+* Copyright (C) 2013 by Eric Osburn.
+* The redistribution terms are provided in the LICENSE file that must
+* be distributed with this source code.
 *************************************************************************************/
 
 /*************************************************************************************
