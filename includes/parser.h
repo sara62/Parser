@@ -1,6 +1,9 @@
 /*************************************************************************************
 * parser.h
 * Declares the Parser class, and all its helper functions.
+* Copyright (C) 2013 by Eric Osburn.
+* The redistribution terms are provided in the LICENSE file that must
+* be distributed with this source code.
 *************************************************************************************/
 #ifndef _PARSER_H
 #define _PARSER_H
