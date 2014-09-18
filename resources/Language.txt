@@ -10,6 +10,9 @@ NOTATION:
                                     Program Commands:
 LOAD [file]:    Load a program from file into memory
 RUN:            Run any program lines currently loaded in memory
+INTER:          Runs the parser in interactive mode
+                    The only difference between this and a file is
+                    that the only control operator available is IF
 CLEAR:          Clear any loaded program lines from memory
 LIST:           Print all program lines currently loaded in memory
 HELP:           Prints a list of all available commands
@@ -63,10 +66,6 @@ These push the result of their operation on stack[-1]
         This does not pop any values
 Miscellaneous Functions:
 These functions print to the debug console, aiding in debugging programs
-    SER     If a serial device is present, this will write the integer value as a byte to serial
-        If a serial device is not preset, this will act identically to POP
-        Depends on the serial library, and that the device is on COM5
-        You can change to a different COM port in source if you want to
     POP     Pops stack[-1] and prints it to the console
     PEEK    Prints stack[-1] without removing it from the stack
     PRNT    Prints the whole stack to the console, with stack[-1] appearing last
@@ -82,7 +81,6 @@ Most of these functions have notes, indented below the description
         Finishes execution of current line, will not be rerun after RET
     RET     Return to line after last GOSUB
         Finishes execution of current line
-        Will cut through ALL previous control statements to find a GOSUB
     IF      Executes code to ELSE statement if stack[-1] > 0
         Takes effect immediately, meaning one line IF .. ELSE .. ENDIF is possible
     ELSE    Will execute if the corresponding IF statement was false
@@ -94,8 +92,6 @@ Most of these functions have notes, indented below the description
         LOOP will return to the line after this, so anything on the WHILE line
             will only be run once before starting the loop code
     LOOP    Jumps back to the line after the corresponding WHILE statement if its variable > 0
-        Will cut through ALL previous control statements to find a WHILE
     BREAK   Exits from the most recent WHILE loop
-        Will jump to line after NEXT LOOP, be careful with whiles in whiles
     WAIT    Delays for stack[-1] seconds
     QUIT    Halts execution of the program
