@@ -1,12 +1,9 @@
 INPUT ABS C =                       REM Get a positive value, save in C
 B WHILE 1 B = 0 A =                 REM Setting B to 1 only gets run once before the loop starts
-    A SER                           REM This should just POP the value of A
+    A POP                           REM This should just POP the value of A
     A C + A =                       REM Add C to A, store in A
-PRINT    HALLOS! REM ASD:FKJA
-QUIT
     A 100 >= IF -1 C * C = ENDIF    REM If A >= 100, multiply C by -1, and store back in C
     A 0 < IF BREAK ENDIF            REM If A <= 0, go to line after LOOP (Could also set B=0 to finish loop first)
     .5 WAIT                         REM Wait for serial data to get sent
 LOOP                                REM This is the end of the while loop, it jumps you back to line 3
-REM 1 GOTO                              REM This makes this a true inescapable infinite loop
-                REM SPAGHETTI CODE FTW!
+QUIT
