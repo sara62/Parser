@@ -1,6 +1,7 @@
 /*************************************************************************************
 * parser.h
 * Declares the Parser class, and all its helper functions.
+*
 * Copyright (C) 2013 by Eric Osburn.
 * The redistribution terms are provided in the LICENSE file that must
 * be distributed with this source code.
@@ -24,6 +25,8 @@
 #include <vector>
 
 #include "stdio.h"
+#include "stdlib.h"
+#include "time.h"
 
 // TODO: This is windows only!
 #include "Windows.h"
@@ -150,10 +153,14 @@ private:
                                             /* Finds the topmost type Control on cStack */
 
     void reset( );                          /* Gets ready for the next run          */
+    void clear( );                          /* Clears all states, except the file   */
     int openFile( std::string& );           /* Sets the file to parse               */
     void listProg( );                       /* Lists out the program with line nums */
     int runFile( );                         /* Parses the open file                 */
-    int parseLine( unsigned );              /* Parses an given line from the open file */
+    int runInteractive( );                  /* Parses interactively                 */
+    // TODO: ^ IMPLEMENT ^
+    int parseLine( unsigned );              /* Parses a given line from the open file */
+    int execLine( std::string& );           /* Parses a given line                  */
 };
 
 /*************************************************************************************
@@ -165,10 +172,14 @@ void wait_( std::deque<Parser::Value>&, std::map<char, float>& );
                                             /* WAIT                                 */
 void pop_( std::deque<Parser::Value>&, std::map<char, float>& );
                                             /* POP                                  */
-void ser_( std::deque<Parser::Value>&, std::map<char, float>& );
-                                            /* SER                                  */
 void peek_( std::deque<Parser::Value>&, std::map<char, float>& );
                                             /* PEEK                                 */
+void input_( std::deque<Parser::Value>&, std::map<char, float>& );
+                                            /* INPUT                                */
+void dupe_( std::deque<Parser::Value>&, std::map<char, float>& );
+                                            /* DUPE                                 */
+void rand_( std::deque<Parser::Value>&, std::map<char, float>& );
+                                            /* RAND                                 */
 void assign_( std::deque<Parser::Value>&, std::map<char, float>& );
                                             /* =                                    */
 void add_( std::deque<Parser::Value>&, std::map<char, float>& );
