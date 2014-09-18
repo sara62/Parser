@@ -21,6 +21,9 @@
 * Parser class constructor
 *************************************************************************************/
 Parser::Parser( ) {
+    // Seed the random generator!
+    srand( ( unsigned ) time( NULL ) );
+
     // Make temp variable for variable list enumeration
     char cChar;
 
@@ -32,8 +35,10 @@ Parser::Parser( ) {
     // Add all operators to the oList. So many calls :/
     this->oList[ "WAIT" ]   = Parser::Operator( (unsigned) 0, wait_ );
     this->oList[ "POP" ]    = Parser::Operator( (unsigned) 0, pop_ );
-    this->oList[ "SER" ]    = Parser::Operator( (unsigned) 0, ser_ );
     this->oList[ "PEEK" ]   = Parser::Operator( (unsigned) 0, peek_ );
+    this->oList[ "INPUT" ]  = Parser::Operator( (unsigned) 0, input_ );
+    this->oList[ "DUPE" ]   = Parser::Operator( (unsigned) 1, dupe_ );
+    this->oList[ "RAND" ]   = Parser::Operator( (unsigned) 0, rand_ );
     this->oList[ "=" ]      = Parser::Operator( (unsigned) 2, assign_ );
     this->oList[ "+" ]      = Parser::Operator( (unsigned) 2, add_ );
     this->oList[ "-" ]      = Parser::Operator( (unsigned) 2, sub_ );
@@ -114,6 +119,10 @@ int Parser::runParse( ) {
             // Pretty obvious, parse the file
             this->runFile( );
 
+        } else if( file.compare( std::string( "inter" ) ) == 0 ){
+            // Parse interactively
+            this->runInteractive( );
+
         } else if( file.compare( std::string( "clear" ) ) == 0 ){
             // Reset the parser to default state
             this->reset( );
@@ -183,6 +192,30 @@ void Parser::reset( ) {
 
     // Close the current file
     this->file.close( );
+
+    // Clear both the stacks
+    this->vStack.erase( this->vStack.begin( ), this->vStack.end( ) );
+    this->cStack.erase( this->cStack.begin( ), this->cStack.end( ) );
+
+    // Set all variables to 0.0
+    for( cChar = 65; cChar < 91; ++cChar ){
+        this->vList[ cChar ] = 0.0;
+    }
+};
+
+/*************************************************************************************
+* Parser clear
+* Sets all parser states back to default, without interrupting the file
+*************************************************************************************/
+void Parser::clear( ) {
+    // Make temp variable for variable list clearing
+    char cChar;
+
+    // Set the running state to true
+    this->running = true;
+
+    // Set first line to execute to 1
+    this->line = 1;
 
     // Clear both the stacks
     this->vStack.erase( this->vStack.begin( ), this->vStack.end( ) );
@@ -293,8 +326,8 @@ void Parser::listProg( ){
 * Runs the current file, parsing line by line
 *************************************************************************************/
 int Parser::runFile( ) {
-    // Set first line to execute to 1
-    this->line = 1;
+    // Clear the parser, ready for run
+    this->clear( );
 
     // Get a counter for the total lines
     unsigned lncnt = this->linestarts.size( ) - 1;
@@ -323,6 +356,48 @@ int Parser::runFile( ) {
 
     // Always print a success message, because everyone likes positivity, even when it didn't work!
     printf( "Program terminated successfully.\n" );
+    return 0;
+};
+
+/*************************************************************************************
+* Parser runInteractive
+* Runs an interactive prompt, using the restricted string parser
+*************************************************************************************/
+int Parser::runInteractive( ) {
+    // Clear the parser, ready for run
+    this->clear( );
+
+    // Line to parse
+    std::string linestr;
+
+    // Clear the cin buffer, otherwise the first prompt prints twice due to a leftover newline...
+    std::getline( std::cin, linestr );
+
+    // Loop while we are actively parsing
+    while( this->running ){
+        // Give the user a prompt
+        printf( "\n> " );
+
+        // Get a line from the user
+        std::getline( std::cin, linestr );
+
+        // Exception handling again
+        try{
+            // Parse the given line
+            this->execLine( linestr );
+
+        } catch( SyntaxError e ){
+            // If there was a syntax error, print out what it was
+            std::cout << e.what( ) << std::endl;
+
+            // Break out of the file parse
+            return -1;
+
+        }
+    }
+
+    // Print out a closing message
+    printf( "Interactive mode terminated.\n" );
     return 0;
 };
 
@@ -622,6 +697,175 @@ int Parser::parseLine( unsigned linenum ) {
 };
 
 /*************************************************************************************
+* Parser execLine
+* The second biggest one! Parse a given line, but only allows IF control statements
+*************************************************************************************/
+int Parser::execLine( std::string& linestr ) {
+    // Line from file -> stringstream lets me >> operators out of the line
+    std::stringstream line;
+    // Current operator
+    std::string oper;
+    // Used for If branch checking
+    Parser::Control criter;
+    // We're printing the rest of the line
+    bool printing = false;
+
+    line << linestr;
+
+    // Check for empty line
+    if( linestr.find_first_not_of( std::string( " " ) ) == oper.npos ) return 0;
+
+    // For all operators in the line
+    while( ! line.eof( ) ){
+        // By default, the last branch was true
+        bool lastifbranch = true;
+
+        // Get an operand!
+        line >> oper;
+
+        // If the operand is a comment marker, ignore the rest of the line
+        if( oper.compare( std::string( "REM" ) ) == 0 ) return 0;
+
+        // If we need to print the rest of the line
+        if( printing ){
+            // Print the operand and a space, continue to the next one
+            std::cout << oper << " ";
+            continue;
+        }
+
+        // If we even have anything on the control stack
+        if( this->cStack.size( ) > 0 ){
+            // Find the topmost if statement, get its branch
+            criter = findTop( Parser::CONTROL_IF );
+
+            // Small error check here, in case its not actually an IF
+            if( criter.type == Parser::CONTROL_IF ) lastifbranch = criter.branch;
+        }
+
+        // Check for and parse ELSE/ENDIF unconditionally
+        if( oper.compare( std::string( "ELSE" ) ) == 0 ) {
+            // There needs to be an IF on the top of the stack, or this fails
+            if( this->cStack.size( ) == 0 || this->cStack.back( ).type != Parser::CONTROL_IF ) throw SyntaxError( "ELSE with no immediate prior IF!" );
+            
+            // Invert the last IF's branch
+            this->cStack.back( ).branch = ! this->cStack.back( ).branch;
+            
+            // Continue to next operand
+            continue;
+        }
+        else if( oper.compare( std::string( "ENDIF" ) ) == 0 ) {
+            // There needs to be an IF on the top of the stack, or this fails
+            if( this->cStack.size( ) == 0 || this->cStack.back( ).type != Parser::CONTROL_IF ) throw SyntaxError( "ELSE with no immediate prior IF!" );
+            
+            // Wipe that silly IF off your stack!
+            this->cStack.pop_back( );
+
+            // Continue to next operand
+            continue;
+        }
+        
+        // The meaty parsing portion now
+        // But only if we actually want to parse it
+        if( lastifbranch == true ){
+
+            // If we get a PRINT, print the rest of the line
+            if( oper.compare( std::string( "PRINT" ) ) == 0 )
+                { std::cout << std::endl; printing = true; continue; }
+
+            // If we get a QUIT, let runFile know, and return immediately
+            else if( oper.compare( std::string( "QUIT" ) ) == 0 )
+                { this->running = false; return 0; }
+
+            // If we get a LINE, print the current line number
+            else if( oper.compare( std::string( "LINE" ) ) == 0 )
+                { std::cout << "Line: " << this->line << std::endl; }
+
+            // If we get a PRNT, do a complete stack dump
+            // QUESTION: Should the variable and control stacks be broken into two
+            //   separate commands?
+            else if( oper.compare( std::string( "PRNT" ) ) == 0 ) {
+                // Iterators for value and control stacks
+                std::deque<Parser::Value>::reverse_iterator riter, end;
+                std::deque<Parser::Control>::reverse_iterator criter, cend;
+                // Again, the ends are there so we dont have to recalculate .rend( ) every loop
+
+                // Mark the sections
+                std::cout << std::endl << "Stack Dump:" << std::endl;
+
+                // For each value on the stack
+                for( riter = this->vStack.rbegin( ), end = this->vStack.rend( ); riter != end; ++riter ){
+                    // If they're a variable, print their tag, else a space
+                    std::cout << (char) ( (riter->isVar) ? riter->tag : 32 );
+
+                    // Then print their value
+                    std::cout << " " << riter->getVal( vList ) << std::endl;
+                }
+
+                // For each control object on the stack
+                std::cout << std::endl << "Control Stack Dump:" << std::endl;
+                for( criter = this->cStack.rbegin( ), cend = this->cStack.rend( ); criter != cend; ++criter ){
+                    // Print their type, with an output of DURRR if someone manages to break the object
+                    std::cout << ( ( criter->type == Parser::CONTROL_INVALID ) ? "INVALID" : ( ( criter->type == Parser::CONTROL_GOSUB ) ? "GOSUB" : ( ( criter->type == Parser::CONTROL_IF ) ? "IF" : ( ( criter->type == Parser::CONTROL_WHILE ) ? "WHILE" : ( "DURRR" ) ) ) ) );
+                    // Then print ALL the information from them, this could mean getting bogus values
+                    // I'm just too lazy to switch by type, and only print the useful stuff |-P
+                    std::cout << " " << ( ( criter->branch ) ? "true" : "false" ) << " " << criter->line << " " << (char) criter->var << std::endl;
+                }
+            }
+
+            // If we get an IF
+            else if( oper.compare( std::string( "IF" ) ) == 0 ) {
+                // Sanity check stack size
+                if( this->vStack.size( ) == 0 ) throw SyntaxError( "IF with nothing on the stack!" );
+
+                // Push an If to the control stack, with the current branch
+                this->cStack.push_back( Parser::Control::cIf( ( this->vStack.back( ).getVal( this->vList ) > 0 ) ? true : false ) );
+                
+                // Pop off the value used
+                this->vStack.pop_back( );
+            }
+            
+            // Okay, so it wasn't a control operator
+            // Check the list of operators now
+            else if( this->oList.find( oper ) != this->oList.end( ) )
+                // If we find it, run it's do method
+                this->oList[ oper ].doDatThang( this->vStack, this->vList );
+            
+            // At this point, it must be a Variable, right?
+            else if( oper.length( ) == 1 && this->vList.find( oper[ 0 ] ) != this->vList.end( ) )
+                // Push it to the stack if it is
+                this->vStack.push_back( Parser::Value::Variable( oper[ 0 ] ) );
+
+            // Okay, it's either a literal, or its invalid.
+            else {
+                // MSVS has no support for Infinity / NAN macros :-S
+                // That really bugs me...
+
+                // Get a float with a value of infinity ( Least likely input value from user )
+                float f = std::numeric_limits<float>::infinity( );
+                // Get an unnecessary stringstream
+                // C++11 defines -> float std::stof( std::string )
+                std::istringstream iss( oper );
+                
+                // Try to convert the operator to a float
+                iss >> f;
+
+                // If we succeeded
+                if( f != std::numeric_limits<float>::infinity( ) )
+                    // Push it to the stack as a Literal
+                    this->vStack.push_back( Parser::Value::Literal( f ) );
+
+                // Oper is bad, and should feel bad
+                // QUESTION: Should I add a separate constructor for SyntaxErrors
+                //   that lets me pass the operator as well?
+                else throw( SyntaxError( "Invalid operator!" ) );
+            }
+        } else continue;
+    }
+
+    return 0;
+};
+
+/*************************************************************************************
 * Ready for the loooong list of operators supported?? :D
 *
 * Basic format is this: void operatorname_( std::deque<Parser::Value>& stack, std::map<char, float>& vList ) {...};
@@ -651,14 +895,6 @@ void pop_( std::deque<Parser::Value>& stack, std::map<char, float>& vList ){
     stack.pop_back( );
 }
 /*************************************************************************************
-* ser_
-*************************************************************************************/
-void ser_( std::deque<Parser::Value>& stack, std::map<char, float>& vList ){
-    // TODO: If serial comms are enabled, this should send the top value there instead
-    peek_( stack, vList );
-    stack.pop_back( );
-}
-/*************************************************************************************
 * peek_
 *************************************************************************************/
 void peek_( std::deque<Parser::Value>& stack, std::map<char, float>& vList ){
@@ -670,11 +906,49 @@ void peek_( std::deque<Parser::Value>& stack, std::map<char, float>& vList ){
 /*************************************************************************************
 * Some random ones...
 *************************************************************************************/
-//INPUT
+/*************************************************************************************
+* input_
+*************************************************************************************/
+void input_( std::deque<Parser::Value>& stack, std::map<char, float>& vList ){
+    // User's float value
+    float f;
 
-// Some other ones!
-//RAND
-//DUPE
+    // Give them a prompt
+    printf( "Float -> " );
+
+    // Loop until we get a good value
+    while( true ){
+        // Try to pull a float out
+        std::cin >> f;
+        
+        // If we couldn't get one, clear the buffer and try again
+        if( std::cin.fail( ) ){
+            std::cout << "Try again!" << std::endl << "Float -> ";
+            std::cin.clear( );
+            std::cin.ignore( INT_MAX, '\n' );
+        } else break;
+        // If we did get a good one, break
+
+    }
+
+    // Add the value to the stack
+    stack.push_back( Parser::Value::Literal( f ) );
+
+    // Clean up the terminal
+    printf( "\n" );
+}
+/*************************************************************************************
+* dupe_
+*************************************************************************************/
+void dupe_( std::deque<Parser::Value>& stack, std::map<char, float>& vList ){
+    stack.push_back( stack.back( ) );
+}
+/*************************************************************************************
+* rand_
+*************************************************************************************/
+void rand_( std::deque<Parser::Value>& stack, std::map<char, float>& vList ){
+    stack.push_back( Parser::Value::Literal( ( float ) rand() / ( float ) RAND_MAX ) );
+}
 
 /*************************************************************************************
 * The basic one!
